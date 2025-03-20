@@ -17,5 +17,5 @@ type Meetup {
 }
 
 type Query {
-  meetups(): [Meetup!]!
+  meetups: [Meetup!]!
 }
