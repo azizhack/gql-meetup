@@ -19,7 +19,7 @@ type Meetup {
 input NewMeetup {
   name: String!
   description: String!
-  userId: ID!
+  userId: String!
 }
 
 type Query {

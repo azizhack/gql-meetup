@@ -11,7 +11,7 @@ type UsersRepo struct {
 
 func (r *UsersRepo) GetUserById(id string) (*models.User, error) {
 	var user *models.User
-	err := r.DB.Model(&user).Where("id", id).First()
+	err := r.DB.Model(&user).Where("id = ?", id).First()
 	return user, err
 }
 func (r *UsersRepo) GetUsers() ([]*models.User, error) {
