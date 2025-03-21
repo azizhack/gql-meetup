@@ -9,7 +9,7 @@ type MeetupsRepo struct {
 	DB *pg.DB
 }
 
-func (r *MeetupsRepo) CreateMeetup(meetup *entities.Meetup) (*entities.Meetup, error) {
+func (r *MeetupsRepo) CreateMeetup(meetup *entities.Meetup) (*models.Meetup, error) {
 	_, err := r.DB.Model(meetup).Returning("*").Insert()
 	return meetup, err
 }
