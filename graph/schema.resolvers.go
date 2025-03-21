@@ -6,36 +6,37 @@ package graph
 
 import (
 	"context"
-	"fmt"
 
-	"github.com/azizhack/gql-meetup/entities"
 	"github.com/azizhack/gql-meetup/graph/model"
-	entities1 "github.com/azizhack/gql-meetup/models"
+	"github.com/azizhack/gql-meetup/models"
 )
 
 // User is the resolver for the user field.
-func (r *meetupResolver) User(ctx context.Context, obj *entities1.Meetup) (*entities1.User, error) {
-	panic(fmt.Errorf("not implemented: User - user"))
+func (r *meetupResolver) User(ctx context.Context, obj *models.Meetup) (*models.User, error) {
+	return r.UserRepo.GetUserById(obj.UserID)
 }
 
 // CreateMeetup is the resolver for the createMeetup field.
-func (r *mutationResolver) CreateMeetup(ctx context.Context, input model.NewMeetup) (*entities1.Meetup, error) {
-	return r.MeetupRepo.CreateMeetup(&entities.Meetup{})
+func (r *mutationResolver) CreateMeetup(ctx context.Context, input model.NewMeetup) (*models.Meetup, error) {
+	return r.MeetupRepo.CreateMeetup(&models.Meetup{
+		Name:        input.Name,
+		Description: input.Description,
+	})
 }
 
 // Meetups is the resolver for the meetups field.
-func (r *queryResolver) Meetups(ctx context.Context) ([]*entities1.Meetup, error) {
+func (r *queryResolver) Meetups(ctx context.Context) ([]*models.Meetup, error) {
 	return r.MeetupRepo.GetMeetups()
 }
 
 // Users is the resolver for the users field.
-func (r *queryResolver) Users(ctx context.Context) ([]*entities1.User, error) {
+func (r *queryResolver) Users(ctx context.Context) ([]*models.User, error) {
 	return r.UserRepo.GetUsers()
 }
 
 // Meetups is the resolver for the meetups field.
-func (r *userResolver) Meetups(ctx context.Context, obj *entities1.User) ([]*entities1.Meetup, error) {
-	panic(fmt.Errorf("not implemented: Meetups - meetups"))
+func (r *userResolver) Meetups(ctx context.Context, obj *models.User) ([]*models.Meetup, error) {
+	return r.MeetupRepo.GetMeetupsByUserID(obj.ID)
 }
 
 // Meetup returns MeetupResolver implementation.
