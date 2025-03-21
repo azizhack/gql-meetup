@@ -8,32 +8,49 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/azizhack/gql-meetup/entities"
 	"github.com/azizhack/gql-meetup/graph/model"
+	entities1 "github.com/azizhack/gql-meetup/models"
 )
 
+// User is the resolver for the user field.
+func (r *meetupResolver) User(ctx context.Context, obj *entities1.Meetup) (*entities1.User, error) {
+	panic(fmt.Errorf("not implemented: User - user"))
+}
+
+// CreateMeetup is the resolver for the createMeetup field.
+func (r *mutationResolver) CreateMeetup(ctx context.Context, input model.NewMeetup) (*entities1.Meetup, error) {
+	return r.MeetupRepo.CreateMeetup(&entities.Meetup{})
+}
+
 // Meetups is the resolver for the meetups field.
-func (r *queryResolver) Meetups(ctx context.Context) ([]*model.Meetup, error) {
+func (r *queryResolver) Meetups(ctx context.Context) ([]*entities1.Meetup, error) {
+	return r.MeetupRepo.GetMeetups()
+}
+
+// Users is the resolver for the users field.
+func (r *queryResolver) Users(ctx context.Context) ([]*entities1.User, error) {
+	return r.UserRepo.GetUsers()
+}
+
+// Meetups is the resolver for the meetups field.
+func (r *userResolver) Meetups(ctx context.Context, obj *entities1.User) ([]*entities1.Meetup, error) {
 	panic(fmt.Errorf("not implemented: Meetups - meetups"))
 }
+
+// Meetup returns MeetupResolver implementation.
+func (r *Resolver) Meetup() MeetupResolver { return &meetupResolver{r} }
+
+// Mutation returns MutationResolver implementation.
+func (r *Resolver) Mutation() MutationResolver { return &mutationResolver{r} }
 
 // Query returns QueryResolver implementation.
 func (r *Resolver) Query() QueryResolver { return &queryResolver{r} }
 
-type queryResolver struct{ *Resolver }
+// User returns UserResolver implementation.
+func (r *Resolver) User() UserResolver { return &userResolver{r} }
 
-// !!! WARNING !!!
-// The code below was going to be deleted when updating resolvers. It has been copied here so you have
-// one last chance to move it out of harms way if you want. There are two reasons this happens:
-//  - When renaming or deleting a resolver the old code will be put in here. You can safely delete
-//    it when you're done.
-//  - You have helper methods in this file. Move them out to keep these resolver files clean.
-/*
-	func (r *mutationResolver) CreateTodo(ctx context.Context, input model.NewTodo) (*model.Todo, error) {
-	panic(fmt.Errorf("not implemented: CreateTodo - createTodo"))
-}
-func (r *queryResolver) Todos(ctx context.Context) ([]*model.Todo, error) {
-	panic(fmt.Errorf("not implemented: Todos - todos"))
-}
-func (r *Resolver) Mutation() MutationResolver { return &mutationResolver{r} }
+type meetupResolver struct{ *Resolver }
 type mutationResolver struct{ *Resolver }
-*/
+type queryResolver struct{ *Resolver }
+type userResolver struct{ *Resolver }

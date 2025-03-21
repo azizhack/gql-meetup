@@ -15,6 +15,7 @@ import (
 	"github.com/99designs/gqlgen/graphql"
 	"github.com/99designs/gqlgen/graphql/introspection"
 	"github.com/azizhack/gql-meetup/graph/model"
+	entities "github.com/azizhack/gql-meetup/models"
 	gqlparser "github.com/vektah/gqlparser/v2"
 	"github.com/vektah/gqlparser/v2/ast"
 )
@@ -39,7 +40,10 @@ type Config struct {
 }
 
 type ResolverRoot interface {
+	Meetup() MeetupResolver
+	Mutation() MutationResolver
 	Query() QueryResolver
+	User() UserResolver
 }
 
 type DirectiveRoot struct {
@@ -53,8 +57,13 @@ type ComplexityRoot struct {
 		User        func(childComplexity int) int
 	}
 
+	Mutation struct {
+		CreateMeetup func(childComplexity int, input model.NewMeetup) int
+	}
+
 	Query struct {
 		Meetups func(childComplexity int) int
+		Users   func(childComplexity int) int
 	}
 
 	User struct {
@@ -65,8 +74,18 @@ type ComplexityRoot struct {
 	}
 }
 
+type MeetupResolver interface {
+	User(ctx context.Context, obj *entities.Meetup) (*entities.User, error)
+}
+type MutationResolver interface {
+	CreateMeetup(ctx context.Context, input model.NewMeetup) (*entities.Meetup, error)
+}
 type QueryResolver interface {
-	Meetups(ctx context.Context) ([]*model.Meetup, error)
+	Meetups(ctx context.Context) ([]*entities.Meetup, error)
+	Users(ctx context.Context) ([]*entities.User, error)
+}
+type UserResolver interface {
+	Meetups(ctx context.Context, obj *entities.User) ([]*entities.Meetup, error)
 }
 
 type executableSchema struct {
@@ -116,12 +135,31 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 
 		return e.complexity.Meetup.User(childComplexity), true
 
+	case "Mutation.createMeetup":
+		if e.complexity.Mutation.CreateMeetup == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_createMeetup_args(context.TODO(), rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Mutation.CreateMeetup(childComplexity, args["input"].(model.NewMeetup)), true
+
 	case "Query.meetups":
 		if e.complexity.Query.Meetups == nil {
 			break
 		}
 
 		return e.complexity.Query.Meetups(childComplexity), true
+
+	case "Query.users":
+		if e.complexity.Query.Users == nil {
+			break
+		}
+
+		return e.complexity.Query.Users(childComplexity), true
 
 	case "User.email":
 		if e.complexity.User.Email == nil {
@@ -158,7 +196,9 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 func (e *executableSchema) Exec(ctx context.Context) graphql.ResponseHandler {
 	opCtx := graphql.GetOperationContext(ctx)
 	ec := executionContext{opCtx, e, 0, 0, make(chan graphql.DeferredResult)}
-	inputUnmarshalMap := graphql.BuildUnmarshalerMap()
+	inputUnmarshalMap := graphql.BuildUnmarshalerMap(
+		ec.unmarshalInputNewMeetup,
+	)
 	first := true
 
 	switch opCtx.Operation.Operation {
@@ -191,6 +231,21 @@ func (e *executableSchema) Exec(ctx context.Context) graphql.ResponseHandler {
 			}
 
 			return &response
+		}
+	case ast.Mutation:
+		return func(ctx context.Context) *graphql.Response {
+			if !first {
+				return nil
+			}
+			first = false
+			ctx = graphql.WithUnmarshalerMap(ctx, inputUnmarshalMap)
+			data := ec._Mutation(ctx, opCtx.Operation.SelectionSet)
+			var buf bytes.Buffer
+			data.MarshalGQL(&buf)
+
+			return &graphql.Response{
+				Data: buf.Bytes(),
+			}
 		}
 
 	default:
@@ -258,6 +313,29 @@ var parsedSchema = gqlparser.MustLoadSchema(sources...)
 // endregion ************************** generated!.gotpl **************************
 
 // region    ***************************** args.gotpl *****************************
+
+func (ec *executionContext) field_Mutation_createMeetup_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := ec.field_Mutation_createMeetup_argsInput(ctx, rawArgs)
+	if err != nil {
+		return nil, err
+	}
+	args["input"] = arg0
+	return args, nil
+}
+func (ec *executionContext) field_Mutation_createMeetup_argsInput(
+	ctx context.Context,
+	rawArgs map[string]any,
+) (model.NewMeetup, error) {
+	ctx = graphql.WithPathContext(ctx, graphql.NewPathWithField("input"))
+	if tmp, ok := rawArgs["input"]; ok {
+		return ec.unmarshalNNewMeetup2githubᚗcomᚋazizhackᚋgqlᚑmeetupᚋgraphᚋmodelᚐNewMeetup(ctx, tmp)
+	}
+
+	var zeroVal model.NewMeetup
+	return zeroVal, nil
+}
 
 func (ec *executionContext) field_Query___type_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
@@ -382,7 +460,7 @@ func (ec *executionContext) field___Type_fields_argsIncludeDeprecated(
 
 // region    **************************** field.gotpl *****************************
 
-func (ec *executionContext) _Meetup_id(ctx context.Context, field graphql.CollectedField, obj *model.Meetup) (ret graphql.Marshaler) {
+func (ec *executionContext) _Meetup_id(ctx context.Context, field graphql.CollectedField, obj *entities.Meetup) (ret graphql.Marshaler) {
 	fc, err := ec.fieldContext_Meetup_id(ctx, field)
 	if err != nil {
 		return graphql.Null
@@ -426,7 +504,7 @@ func (ec *executionContext) fieldContext_Meetup_id(_ context.Context, field grap
 	return fc, nil
 }
 
-func (ec *executionContext) _Meetup_name(ctx context.Context, field graphql.CollectedField, obj *model.Meetup) (ret graphql.Marshaler) {
+func (ec *executionContext) _Meetup_name(ctx context.Context, field graphql.CollectedField, obj *entities.Meetup) (ret graphql.Marshaler) {
 	fc, err := ec.fieldContext_Meetup_name(ctx, field)
 	if err != nil {
 		return graphql.Null
@@ -470,7 +548,7 @@ func (ec *executionContext) fieldContext_Meetup_name(_ context.Context, field gr
 	return fc, nil
 }
 
-func (ec *executionContext) _Meetup_description(ctx context.Context, field graphql.CollectedField, obj *model.Meetup) (ret graphql.Marshaler) {
+func (ec *executionContext) _Meetup_description(ctx context.Context, field graphql.CollectedField, obj *entities.Meetup) (ret graphql.Marshaler) {
 	fc, err := ec.fieldContext_Meetup_description(ctx, field)
 	if err != nil {
 		return graphql.Null
@@ -514,7 +592,7 @@ func (ec *executionContext) fieldContext_Meetup_description(_ context.Context, f
 	return fc, nil
 }
 
-func (ec *executionContext) _Meetup_user(ctx context.Context, field graphql.CollectedField, obj *model.Meetup) (ret graphql.Marshaler) {
+func (ec *executionContext) _Meetup_user(ctx context.Context, field graphql.CollectedField, obj *entities.Meetup) (ret graphql.Marshaler) {
 	fc, err := ec.fieldContext_Meetup_user(ctx, field)
 	if err != nil {
 		return graphql.Null
@@ -528,7 +606,7 @@ func (ec *executionContext) _Meetup_user(ctx context.Context, field graphql.Coll
 	}()
 	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (any, error) {
 		ctx = rctx // use context from middleware stack in children
-		return obj.User, nil
+		return ec.resolvers.Meetup().User(rctx, obj)
 	})
 	if err != nil {
 		ec.Error(ctx, err)
@@ -540,17 +618,17 @@ func (ec *executionContext) _Meetup_user(ctx context.Context, field graphql.Coll
 		}
 		return graphql.Null
 	}
-	res := resTmp.(*model.User)
+	res := resTmp.(*entities.User)
 	fc.Result = res
-	return ec.marshalNUser2ᚖgithubᚗcomᚋazizhackᚋgqlᚑmeetupᚋgraphᚋmodelᚐUser(ctx, field.Selections, res)
+	return ec.marshalNUser2ᚖgithubᚗcomᚋazizhackᚋgqlᚑmeetupᚋmodelsᚐUser(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_Meetup_user(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	fc = &graphql.FieldContext{
 		Object:     "Meetup",
 		Field:      field,
-		IsMethod:   false,
-		IsResolver: false,
+		IsMethod:   true,
+		IsResolver: true,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 			switch field.Name {
 			case "id":
@@ -564,6 +642,71 @@ func (ec *executionContext) fieldContext_Meetup_user(_ context.Context, field gr
 			}
 			return nil, fmt.Errorf("no field named %q was found under type User", field.Name)
 		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_createMeetup(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_Mutation_createMeetup(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (any, error) {
+		ctx = rctx // use context from middleware stack in children
+		return ec.resolvers.Mutation().CreateMeetup(rctx, fc.Args["input"].(model.NewMeetup))
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(*entities.Meetup)
+	fc.Result = res
+	return ec.marshalNMeetup2ᚖgithubᚗcomᚋazizhackᚋgqlᚑmeetupᚋmodelsᚐMeetup(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_Mutation_createMeetup(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "id":
+				return ec.fieldContext_Meetup_id(ctx, field)
+			case "name":
+				return ec.fieldContext_Meetup_name(ctx, field)
+			case "description":
+				return ec.fieldContext_Meetup_description(ctx, field)
+			case "user":
+				return ec.fieldContext_Meetup_user(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type Meetup", field.Name)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_createMeetup_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
 	}
 	return fc, nil
 }
@@ -594,9 +737,9 @@ func (ec *executionContext) _Query_meetups(ctx context.Context, field graphql.Co
 		}
 		return graphql.Null
 	}
-	res := resTmp.([]*model.Meetup)
+	res := resTmp.([]*entities.Meetup)
 	fc.Result = res
-	return ec.marshalNMeetup2ᚕᚖgithubᚗcomᚋazizhackᚋgqlᚑmeetupᚋgraphᚋmodelᚐMeetupᚄ(ctx, field.Selections, res)
+	return ec.marshalNMeetup2ᚕᚖgithubᚗcomᚋazizhackᚋgqlᚑmeetupᚋmodelsᚐMeetupᚄ(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_Query_meetups(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -617,6 +760,60 @@ func (ec *executionContext) fieldContext_Query_meetups(_ context.Context, field 
 				return ec.fieldContext_Meetup_user(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type Meetup", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_users(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_Query_users(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (any, error) {
+		ctx = rctx // use context from middleware stack in children
+		return ec.resolvers.Query().Users(rctx)
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.([]*entities.User)
+	fc.Result = res
+	return ec.marshalNUser2ᚕᚖgithubᚗcomᚋazizhackᚋgqlᚑmeetupᚋmodelsᚐUserᚄ(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_Query_users(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "id":
+				return ec.fieldContext_User_id(ctx, field)
+			case "username":
+				return ec.fieldContext_User_username(ctx, field)
+			case "email":
+				return ec.fieldContext_User_email(ctx, field)
+			case "meetups":
+				return ec.fieldContext_User_meetups(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type User", field.Name)
 		},
 	}
 	return fc, nil
@@ -753,7 +950,7 @@ func (ec *executionContext) fieldContext_Query___schema(_ context.Context, field
 	return fc, nil
 }
 
-func (ec *executionContext) _User_id(ctx context.Context, field graphql.CollectedField, obj *model.User) (ret graphql.Marshaler) {
+func (ec *executionContext) _User_id(ctx context.Context, field graphql.CollectedField, obj *entities.User) (ret graphql.Marshaler) {
 	fc, err := ec.fieldContext_User_id(ctx, field)
 	if err != nil {
 		return graphql.Null
@@ -797,7 +994,7 @@ func (ec *executionContext) fieldContext_User_id(_ context.Context, field graphq
 	return fc, nil
 }
 
-func (ec *executionContext) _User_username(ctx context.Context, field graphql.CollectedField, obj *model.User) (ret graphql.Marshaler) {
+func (ec *executionContext) _User_username(ctx context.Context, field graphql.CollectedField, obj *entities.User) (ret graphql.Marshaler) {
 	fc, err := ec.fieldContext_User_username(ctx, field)
 	if err != nil {
 		return graphql.Null
@@ -841,7 +1038,7 @@ func (ec *executionContext) fieldContext_User_username(_ context.Context, field 
 	return fc, nil
 }
 
-func (ec *executionContext) _User_email(ctx context.Context, field graphql.CollectedField, obj *model.User) (ret graphql.Marshaler) {
+func (ec *executionContext) _User_email(ctx context.Context, field graphql.CollectedField, obj *entities.User) (ret graphql.Marshaler) {
 	fc, err := ec.fieldContext_User_email(ctx, field)
 	if err != nil {
 		return graphql.Null
@@ -885,7 +1082,7 @@ func (ec *executionContext) fieldContext_User_email(_ context.Context, field gra
 	return fc, nil
 }
 
-func (ec *executionContext) _User_meetups(ctx context.Context, field graphql.CollectedField, obj *model.User) (ret graphql.Marshaler) {
+func (ec *executionContext) _User_meetups(ctx context.Context, field graphql.CollectedField, obj *entities.User) (ret graphql.Marshaler) {
 	fc, err := ec.fieldContext_User_meetups(ctx, field)
 	if err != nil {
 		return graphql.Null
@@ -899,7 +1096,7 @@ func (ec *executionContext) _User_meetups(ctx context.Context, field graphql.Col
 	}()
 	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (any, error) {
 		ctx = rctx // use context from middleware stack in children
-		return obj.Meetups, nil
+		return ec.resolvers.User().Meetups(rctx, obj)
 	})
 	if err != nil {
 		ec.Error(ctx, err)
@@ -911,17 +1108,17 @@ func (ec *executionContext) _User_meetups(ctx context.Context, field graphql.Col
 		}
 		return graphql.Null
 	}
-	res := resTmp.([]*model.Meetup)
+	res := resTmp.([]*entities.Meetup)
 	fc.Result = res
-	return ec.marshalNMeetup2ᚕᚖgithubᚗcomᚋazizhackᚋgqlᚑmeetupᚋgraphᚋmodelᚐMeetupᚄ(ctx, field.Selections, res)
+	return ec.marshalNMeetup2ᚕᚖgithubᚗcomᚋazizhackᚋgqlᚑmeetupᚋmodelsᚐMeetupᚄ(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_User_meetups(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	fc = &graphql.FieldContext{
 		Object:     "User",
 		Field:      field,
-		IsMethod:   false,
-		IsResolver: false,
+		IsMethod:   true,
+		IsResolver: true,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 			switch field.Name {
 			case "id":
@@ -2890,6 +3087,40 @@ func (ec *executionContext) fieldContext___Type_isOneOf(_ context.Context, field
 
 // region    **************************** input.gotpl *****************************
 
+func (ec *executionContext) unmarshalInputNewMeetup(ctx context.Context, obj any) (model.NewMeetup, error) {
+	var it model.NewMeetup
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"name", "description"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "name":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("name"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Name = data
+		case "description":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("description"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Description = data
+		}
+	}
+
+	return it, nil
+}
+
 // endregion **************************** input.gotpl *****************************
 
 // region    ************************** interface.gotpl ***************************
@@ -2900,7 +3131,7 @@ func (ec *executionContext) fieldContext___Type_isOneOf(_ context.Context, field
 
 var meetupImplementors = []string{"Meetup"}
 
-func (ec *executionContext) _Meetup(ctx context.Context, sel ast.SelectionSet, obj *model.Meetup) graphql.Marshaler {
+func (ec *executionContext) _Meetup(ctx context.Context, sel ast.SelectionSet, obj *entities.Meetup) graphql.Marshaler {
 	fields := graphql.CollectFields(ec.OperationContext, sel, meetupImplementors)
 
 	out := graphql.NewFieldSet(fields)
@@ -2912,20 +3143,100 @@ func (ec *executionContext) _Meetup(ctx context.Context, sel ast.SelectionSet, o
 		case "id":
 			out.Values[i] = ec._Meetup_id(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "name":
 			out.Values[i] = ec._Meetup_name(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "description":
 			out.Values[i] = ec._Meetup_description(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "user":
-			out.Values[i] = ec._Meetup_user(ctx, field, obj)
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Meetup_user(ctx, field, obj)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			if field.Deferrable != nil {
+				dfs, ok := deferred[field.Deferrable.Label]
+				di := 0
+				if ok {
+					dfs.AddField(field)
+					di = len(dfs.Values) - 1
+				} else {
+					dfs = graphql.NewFieldSet([]graphql.CollectedField{field})
+					deferred[field.Deferrable.Label] = dfs
+				}
+				dfs.Concurrently(di, func(ctx context.Context) graphql.Marshaler {
+					return innerFunc(ctx, dfs)
+				})
+
+				// don't run the out.Concurrently() call below
+				out.Values[i] = graphql.Null
+				continue
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.processDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var mutationImplementors = []string{"Mutation"}
+
+func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, mutationImplementors)
+	ctx = graphql.WithFieldContext(ctx, &graphql.FieldContext{
+		Object: "Mutation",
+	})
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		innerCtx := graphql.WithRootFieldContext(ctx, &graphql.RootFieldContext{
+			Object: field.Name,
+			Field:  field,
+		})
+
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("Mutation")
+		case "createMeetup":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_createMeetup(ctx, field)
+			})
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
@@ -2993,6 +3304,28 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 			}
 
 			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "users":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_users(ctx, field)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
 		case "__type":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Query___type(ctx, field)
@@ -3026,7 +3359,7 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 
 var userImplementors = []string{"User"}
 
-func (ec *executionContext) _User(ctx context.Context, sel ast.SelectionSet, obj *model.User) graphql.Marshaler {
+func (ec *executionContext) _User(ctx context.Context, sel ast.SelectionSet, obj *entities.User) graphql.Marshaler {
 	fields := graphql.CollectFields(ec.OperationContext, sel, userImplementors)
 
 	out := graphql.NewFieldSet(fields)
@@ -3038,23 +3371,54 @@ func (ec *executionContext) _User(ctx context.Context, sel ast.SelectionSet, obj
 		case "id":
 			out.Values[i] = ec._User_id(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "username":
 			out.Values[i] = ec._User_username(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "email":
 			out.Values[i] = ec._User_email(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "meetups":
-			out.Values[i] = ec._User_meetups(ctx, field, obj)
-			if out.Values[i] == graphql.Null {
-				out.Invalids++
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._User_meetups(ctx, field, obj)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
 			}
+
+			if field.Deferrable != nil {
+				dfs, ok := deferred[field.Deferrable.Label]
+				di := 0
+				if ok {
+					dfs.AddField(field)
+					di = len(dfs.Values) - 1
+				} else {
+					dfs = graphql.NewFieldSet([]graphql.CollectedField{field})
+					deferred[field.Deferrable.Label] = dfs
+				}
+				dfs.Concurrently(di, func(ctx context.Context) graphql.Marshaler {
+					return innerFunc(ctx, dfs)
+				})
+
+				// don't run the out.Concurrently() call below
+				out.Values[i] = graphql.Null
+				continue
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
 		}
@@ -3443,7 +3807,11 @@ func (ec *executionContext) marshalNID2string(ctx context.Context, sel ast.Selec
 	return res
 }
 
-func (ec *executionContext) marshalNMeetup2ᚕᚖgithubᚗcomᚋazizhackᚋgqlᚑmeetupᚋgraphᚋmodelᚐMeetupᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.Meetup) graphql.Marshaler {
+func (ec *executionContext) marshalNMeetup2githubᚗcomᚋazizhackᚋgqlᚑmeetupᚋmodelsᚐMeetup(ctx context.Context, sel ast.SelectionSet, v entities.Meetup) graphql.Marshaler {
+	return ec._Meetup(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNMeetup2ᚕᚖgithubᚗcomᚋazizhackᚋgqlᚑmeetupᚋmodelsᚐMeetupᚄ(ctx context.Context, sel ast.SelectionSet, v []*entities.Meetup) graphql.Marshaler {
 	ret := make(graphql.Array, len(v))
 	var wg sync.WaitGroup
 	isLen1 := len(v) == 1
@@ -3467,7 +3835,7 @@ func (ec *executionContext) marshalNMeetup2ᚕᚖgithubᚗcomᚋazizhackᚋgql�
 			if !isLen1 {
 				defer wg.Done()
 			}
-			ret[i] = ec.marshalNMeetup2ᚖgithubᚗcomᚋazizhackᚋgqlᚑmeetupᚋgraphᚋmodelᚐMeetup(ctx, sel, v[i])
+			ret[i] = ec.marshalNMeetup2ᚖgithubᚗcomᚋazizhackᚋgqlᚑmeetupᚋmodelsᚐMeetup(ctx, sel, v[i])
 		}
 		if isLen1 {
 			f(i)
@@ -3487,7 +3855,7 @@ func (ec *executionContext) marshalNMeetup2ᚕᚖgithubᚗcomᚋazizhackᚋgql�
 	return ret
 }
 
-func (ec *executionContext) marshalNMeetup2ᚖgithubᚗcomᚋazizhackᚋgqlᚑmeetupᚋgraphᚋmodelᚐMeetup(ctx context.Context, sel ast.SelectionSet, v *model.Meetup) graphql.Marshaler {
+func (ec *executionContext) marshalNMeetup2ᚖgithubᚗcomᚋazizhackᚋgqlᚑmeetupᚋmodelsᚐMeetup(ctx context.Context, sel ast.SelectionSet, v *entities.Meetup) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
 			ec.Errorf(ctx, "the requested element is null which the schema does not allow")
@@ -3495,6 +3863,11 @@ func (ec *executionContext) marshalNMeetup2ᚖgithubᚗcomᚋazizhackᚋgqlᚑme
 		return graphql.Null
 	}
 	return ec._Meetup(ctx, sel, v)
+}
+
+func (ec *executionContext) unmarshalNNewMeetup2githubᚗcomᚋazizhackᚋgqlᚑmeetupᚋgraphᚋmodelᚐNewMeetup(ctx context.Context, v any) (model.NewMeetup, error) {
+	res, err := ec.unmarshalInputNewMeetup(ctx, v)
+	return res, graphql.ErrorOnPath(ctx, err)
 }
 
 func (ec *executionContext) unmarshalNString2string(ctx context.Context, v any) (string, error) {
@@ -3512,7 +3885,55 @@ func (ec *executionContext) marshalNString2string(ctx context.Context, sel ast.S
 	return res
 }
 
-func (ec *executionContext) marshalNUser2ᚖgithubᚗcomᚋazizhackᚋgqlᚑmeetupᚋgraphᚋmodelᚐUser(ctx context.Context, sel ast.SelectionSet, v *model.User) graphql.Marshaler {
+func (ec *executionContext) marshalNUser2githubᚗcomᚋazizhackᚋgqlᚑmeetupᚋmodelsᚐUser(ctx context.Context, sel ast.SelectionSet, v entities.User) graphql.Marshaler {
+	return ec._User(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNUser2ᚕᚖgithubᚗcomᚋazizhackᚋgqlᚑmeetupᚋmodelsᚐUserᚄ(ctx context.Context, sel ast.SelectionSet, v []*entities.User) graphql.Marshaler {
+	ret := make(graphql.Array, len(v))
+	var wg sync.WaitGroup
+	isLen1 := len(v) == 1
+	if !isLen1 {
+		wg.Add(len(v))
+	}
+	for i := range v {
+		i := i
+		fc := &graphql.FieldContext{
+			Index:  &i,
+			Result: &v[i],
+		}
+		ctx := graphql.WithFieldContext(ctx, fc)
+		f := func(i int) {
+			defer func() {
+				if r := recover(); r != nil {
+					ec.Error(ctx, ec.Recover(ctx, r))
+					ret = nil
+				}
+			}()
+			if !isLen1 {
+				defer wg.Done()
+			}
+			ret[i] = ec.marshalNUser2ᚖgithubᚗcomᚋazizhackᚋgqlᚑmeetupᚋmodelsᚐUser(ctx, sel, v[i])
+		}
+		if isLen1 {
+			f(i)
+		} else {
+			go f(i)
+		}
+
+	}
+	wg.Wait()
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNUser2ᚖgithubᚗcomᚋazizhackᚋgqlᚑmeetupᚋmodelsᚐUser(ctx context.Context, sel ast.SelectionSet, v *entities.User) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
 			ec.Errorf(ctx, "the requested element is null which the schema does not allow")

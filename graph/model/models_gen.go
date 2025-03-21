@@ -2,19 +2,13 @@
 
 package model
 
-type Meetup struct {
-	ID          string `json:"id"`
+type Mutation struct {
+}
+
+type NewMeetup struct {
 	Name        string `json:"name"`
 	Description string `json:"description"`
-	User        *User  `json:"user"`
 }
 
 type Query struct {
-}
-
-type User struct {
-	ID       string    `json:"id"`
-	Username string    `json:"username"`
-	Email    string    `json:"email"`
-	Meetups  []*Meetup `json:"meetups"`
 }

@@ -16,6 +16,16 @@ type Meetup {
   user: User!
 }
 
+input NewMeetup {
+  name: String!
+  description: String!
+}
+
 type Query {
   meetups: [Meetup!]!
+  users:[User!]!
+}
+
+type Mutation {
+  createMeetup(input:NewMeetup!):Meetup!
 }

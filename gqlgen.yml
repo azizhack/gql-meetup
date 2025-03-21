@@ -125,6 +125,16 @@ autobind:
 # modelgen, the others will be allowed when binding to fields. Configure them to
 # your liking
 models:
+  User:
+    model: github.com/azizhack/gql-meetup/models.User
+    fields:
+      meetups:
+        resolver: true # Générer un résolveur pour le champ `meetups`
+  Meetup:
+    model: github.com/azizhack/gql-meetup/models.Meetup
+    fields:
+      user:
+        resolver: true # Générer un résolveur pour le champ `user`
   ID:
     model:
       - github.com/99designs/gqlgen/graphql.ID
